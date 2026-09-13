@@ -1,0 +1,100 @@
+from pathlib import Path
+import json, zipfile, shutil
+
+# Build a reusable 100+ language library for the dubbing project.
+langs = [
+("af","Afrikaans",False),("am","አማርኛ",False),("ar","العربية",True),("az","Azərbaycan",False),
+("be","Беларуская",False),("bg","Български",False),("bn","বাংলা",False),("bs","Bosanski",False),
+("ca","Català",False),("cs","Čeština",False),("cy","Cymraeg",False),("da","Dansk",False),
+("de","Deutsch",False),("el","Ελληνικά",False),("en","English",False),("es","Español",False),
+("et","Eesti",False),("eu","Euskara",False),("fa","فارسی",True),("fi","Suomi",False),
+("fil","Filipino",False),("fr","Français",False),("ga","Gaeilge",False),("gl","Galego",False),
+("gu","ગુજરાતી",False),("he","עברית",True),("hi","हिन्दी",False),("hr","Hrvatski",False),
+("hu","Magyar",False),("hy","Հայերեն",False),("id","Bahasa Indonesia",False),("is","Íslenska",False),
+("it","Italiano",False),("ja","日本語",False),("jv","Basa Jawa",False),("ka","ქართული",False),
+("kk","Қазақша",False),("km","ខ្មែរ",False),("kn","ಕನ್ನಡ",False),("ko","한국어",False),
+("ky","Кыргызча",False),("lo","ລາວ",False),("lt","Lietuvių",False),("lv","Latviešu",False),
+("mk","Македонски",False),("ml","മലയാളം",False),("mn","Монгол",False),("mr","मराठी",False),
+("ms","Bahasa Melayu",False),("mt","Malti",False),("my","မြန်မာ",False),("ne","नेपाली",False),
+("nl","Nederlands",False),("no","Norsk",False),("pa","ਪੰਜਾਬੀ",False),("pl","Polski",False),
+("ps","پښتو",True),("pt","Português",False),("ro","Română",False),("ru","Русский",False),
+("sk","Slovenčina",False),("sl","Slovenščina",False),("so","Soomaali",False),("sq","Shqip",False),
+("sr","Српски",False),("sv","Svenska",False),("sw","Kiswahili",False),("ta","தமிழ்",False),
+("te","తెలుగు",False),("tg","Тоҷикӣ",False),("th","ไทย",False),("tk","Türkmençe",False),
+("tr","Türkçe",False),("uk","Українська",False),("ur","اردو",True),("uz","O‘zbek",False),
+("vi","Tiếng Việt",False),("xh","isiXhosa",False),("yi","ייִדיש",True),("zh","中文",False),
+("zu","isiZulu",False),
+# additional commonly useful regional/world languages
+("bs-Latn","Bosnian Latin",False),("ceb","Cebuano",False),("co","Corsu",False),
+("eo","Esperanto",False),("fy","Frisian",False),("ht","Kreyòl Ayisyen",False),
+("hmn","Hmong",False),("la","Latin",False),("lb","Luxembourgish",False),
+("mi","Māori",False),("mg","Malagasy",False),("ny","Chichewa",False),
+("sd","Sindhi",True),("su","Sundanese",False),("tt","Tatar",False),
+("ug","ئۇيغۇرچە",True),("yo","Yorùbá",False),
+]
+items=[]
+for code,name,rtl in langs:
+    items.append({
+        "code":code, "name":name, "direction":"rtl" if rtl else "ltr",
+        "stt": True, "translation": True, "tts": True, "subtitles": True,
+        "status":"provider_dependent"
+    })
+
+root=Path("/mnt/data/AI-Video-Dubbing-Language-Library")
+if root.exists(): shutil.rmtree(root)
+(root/"languages").mkdir(parents=True)
+
+(root/"languages/languages.json").write_text(
+    json.dumps(items,ensure_ascii=False,indent=2),encoding="utf-8"
+)
+
+(root/"languages/README.md").write_text("""# Language Library
+
+Contains a centralized language catalog for the AI video dubbing platform.
+
+Fields:
+- `code`: language identifier used by the application
+- `name`: display name
+- `direction`: `ltr` or `rtl`
+- `stt`: speech-to-text availability flag
+- `translation`: translation availability flag
+- `tts`: text-to-speech availability flag
+- `subtitles`: subtitle support flag
+- `status`: actual provider support must be verified for the selected STT/translation/TTS providers
+
+Important: support is provider-dependent. Do not promise every language to users unless the configured providers actually support it.
+""",encoding="utf-8")
+
+(root/"languages/language_codes.py").write_text("""import json
+from pathlib import Path
+
+DATA = Path(__file__).with_name("languages.json")
+LANGUAGES = json.loads(DATA.read_text(encoding="utf-8"))
+LANGUAGE_BY_CODE = {x["code"]: x for x in LANGUAGES}
+
+def get_languages():
+    return LANGUAGES
+
+def get_language(code: str):
+    return LANGUAGE_BY_CODE.get(code)
+""",encoding="utf-8")
+
+(root/"backend_language_api.py").write_text("""from pathlib import Path
+import json
+
+LANG_FILE = Path(__file__).parent / "languages" / "languages.json"
+LANGUAGES = json.loads(LANG_FILE.read_text(encoding="utf-8"))
+
+def list_languages():
+    return LANGUAGES
+
+def find_language(code: str):
+    return next((x for x in LANGUAGES if x["code"] == code), None)
+""",encoding="utf-8")
+
+zip_path=Path("/mnt/data/AI-Video-Dubbing-Language-Library.zip")
+with zipfile.ZipFile(zip_path,"w",zipfile.ZIP_DEFLATED) as z:
+    for p in root.rglob("*"):
+        if p.is_file(): z.write(p,p.relative_to(root))
+
+print(f"تم إنشاء مكتبة {len(items)} لغة: {zip_path}")
