@@ -1,0 +1,185 @@
+from pathlib import Path
+import zipfile, shutil
+
+root=Path("/mnt/data/AI-Video-Dubbing-Voice-Image-Replacement-Platform-PRO")
+if root.exists(): shutil.rmtree(root)
+(root/"backend/app").mkdir(parents=True)
+(root/"frontend").mkdir()
+(root/"storage").mkdir()
+
+data={
+"docker-compose.yml":"""services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: dubbing
+      POSTGRES_PASSWORD: dubbing
+      POSTGRES_DB: dubbing
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    ports: ["5432:5432"]
+
+  redis:
+    image: redis:7
+    ports: ["6379:6379"]
+
+  backend:
+    build: ./backend
+    env_file: .env
+    ports: ["8000:8000"]
+    depends_on: [db, redis]
+    volumes:
+      - ./storage:/app/storage
+
+volumes:
+  postgres_data:
+""",
+".env":"""DATABASE_URL=postgresql+psycopg://dubbing:dubbing@db:5432/dubbing
+REDIS_URL=redis://redis:6379/0
+OPENAI_API_KEY=
+ELEVENLABS_API_KEY=
+CORS_ORIGINS=*
+""",
+".env.example":"""DATABASE_URL=postgresql+psycopg://dubbing:dubbing@db:5432/dubbing
+REDIS_URL=redis://redis:6379/0
+OPENAI_API_KEY=
+ELEVENLABS_API_KEY=
+CORS_ORIGINS=*
+""",
+"backend/Dockerfile":"""FROM python:3.12-slim
+RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY app ./app
+RUN mkdir -p /app/storage
+CMD ["uvicorn","app.main:app","--host","0.0.0.0","--port","8000"]
+""",
+"backend/requirements.txt":"""fastapi
+uvicorn[standard]
+python-multipart
+pydantic
+psycopg[binary]
+redis
+httpx
+python-dotenv
+""",
+"backend/app/main.py":"""import os, shutil, subprocess, json
+from pathlib import Path
+from uuid import uuid4
+from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
+
+BASE=Path("/app/storage"); BASE.mkdir(parents=True,exist_ok=True)
+app=FastAPI(title="AI Video Dubbing PRO",version="1.0")
+app.add_middleware(CORSMiddleware,allow_origins=["*"],allow_credentials=True,allow_methods=["*"],allow_headers=["*"])
+
+@app.get("/")
+def root(): return {"service":"AI Video Dubbing PRO","status":"online"}
+
+@app.get("/health")
+def health(): return {"status":"ok"}
+
+@app.post("/api/projects")
+def create_project(name:str="مشروع جديد"):
+    pid=str(uuid4()); d=BASE/pid; d.mkdir()
+    (d/"project.json").write_text(json.dumps({"id":pid,"name":name,"status":"created"},ensure_ascii=False))
+    return {"id":pid,"name":name,"status":"created"}
+
+@app.post("/api/projects/{pid}/upload")
+async def upload(pid:str,file:UploadFile=File(...)):
+    d=BASE/pid
+    if not d.exists(): raise HTTPException(404,"المشروع غير موجود")
+    if not file.filename: raise HTTPException(400,"ملف غير صالح")
+    target=d/"source.mp4"
+    with target.open("wb") as f: shutil.copyfileobj(file.file,f)
+    return {"project_id":pid,"file":str(target),"status":"uploaded"}
+
+def run_cmd(cmd):
+    p=subprocess.run(cmd,capture_output=True,text=True)
+    if p.returncode: raise RuntimeError(p.stderr[-2000:])
+    return p.stdout
+
+@app.post("/api/projects/{pid}/extract-audio")
+def extract_audio(pid:str):
+    d=BASE/pid; src=d/"source.mp4"; out=d/"audio.wav"
+    if not src.exists(): raise HTTPException(404,"ارفع الفيديو أولاً")
+    run_cmd(["ffmpeg","-y","-i",str(src),"-vn","-ac","1","-ar","16000","-c:a","pcm_s16le",str(out)])
+    return {"status":"audio_ready","path":f"/storage/{pid}/audio.wav"}
+
+@app.post("/api/projects/{pid}/process")
+def process(pid:str,background_tasks:BackgroundTasks,source_language:str="auto",target_language:str="ar"):
+    d=BASE/pid
+    if not (d/"source.mp4").exists(): raise HTTPException(404,"ارفع الفيديو أولاً")
+    (d/"job.json").write_text(json.dumps({"status":"queued","source_language":source_language,"target_language":target_language},ensure_ascii=False))
+    # Hook for production workers: STT -> translation -> TTS -> sync -> render.
+    return {"project_id":pid,"status":"queued","steps":["STT","translation","TTS","sync","subtitles","render"]}
+
+@app.get("/api/projects/{pid}/status")
+def status(pid:str):
+    d=BASE/pid
+    if not d.exists(): raise HTTPException(404,"المشروع غير موجود")
+    job=d/"job.json"
+    return json.loads(job.read_text()) if job.exists() else {"status":"created"}
+""",
+"frontend/index.html":"""<!doctype html><html lang="ar" dir="rtl"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Dubbing PRO</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial;background:#0b1020;color:#eef2ff}
+header{padding:22px 6%;background:#121a30;border-bottom:1px solid #26314f}
+main{max-width:1150px;margin:30px auto;padding:0 18px}.hero{padding:30px 0}.hero h1{font-size:38px;margin:5px 0}.muted{color:#9aa7c7}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:18px}
+.card{background:#121a30;border:1px solid #26314f;border-radius:18px;padding:22px}
+input,select{width:100%;padding:13px;margin:8px 0 14px;border-radius:10px;border:1px solid #34415f;background:#0b1020;color:#fff}
+button{padding:13px 18px;border:0;border-radius:10px;cursor:pointer;font-weight:700}.primary{background:#fff;color:#101828}.secondary{background:#26314f;color:#fff}
+#log{background:#050814;border-radius:12px;padding:15px;min-height:100px;white-space:pre-wrap;color:#b9c5e6}
+</style></head><body>
+<header>🎬 AI Video Dubbing PRO</header><main>
+<section class="hero"><div class="muted">منصة ترجمة ودبلجة وإخراج الفيديو</div><h1>حوّل فيديوك إلى لغة جديدة</h1><p class="muted">رفع → تفريغ الكلام → ترجمة → صوت AI → مزامنة → ترجمة مكتوبة → إخراج MP4</p></section>
+<div class="grid">
+<section class="card"><h2>① المشروع</h2><input id="name" value="مشروع دبلجة"><button class="primary" onclick="createProject()">إنشاء مشروع</button></section>
+<section class="card"><h2>② الفيديو</h2><input id="video" type="file" accept="video/*"><button class="primary" onclick="upload()">رفع الفيديو</button></section>
+<section class="card"><h2>③ اللغات</h2><select id="src"><option value="auto">اكتشاف تلقائي</option><option value="ar">العربية</option><option value="en">English</option></select><select id="dst"><option value="ar">العربية</option><option value="en">English</option><option value="tr">Türkçe</option></select><button class="primary" onclick="start()">بدء الدبلجة</button></section>
+</div><br><section class="card"><h2>حالة المشروع</h2><div id="log">جاهز.</div></section>
+</main><script>
+const API="http://localhost:8000";let pid="";
+const log=x=>document.getElementById("log").textContent=typeof x==="string"?x:JSON.stringify(x,null,2);
+async function createProject(){let n=document.getElementById("name").value;let r=await fetch(API+"/api/projects?name="+encodeURIComponent(n),{method:"POST"});let d=await r.json();pid=d.id;log(d)}
+async function upload(){if(!pid)return log("أنشئ المشروع أولاً");let f=document.getElementById("video").files[0];if(!f)return log("اختر الفيديو");let fd=new FormData();fd.append("file",f);let r=await fetch(API+"/api/projects/"+pid+"/upload",{method:"POST",body:fd});log(await r.json())}
+async function start(){if(!pid)return log("أنشئ المشروع أولاً");let s=document.getElementById("src").value,t=document.getElementById("dst").value;let r=await fetch(API+"/api/projects/"+pid+"/process?source_language="+s+"&target_language="+t,{method:"POST"});log(await r.json())}
+</script></body></html>""",
+"README.md":"""# AI Video Dubbing PRO
+
+## تشغيل
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+API: http://localhost:8000
+Frontend: افتح `frontend/index.html`
+
+## Production pipeline
+1. FFmpeg audio extraction
+2. Speech-to-text
+3. Word/speaker timestamps
+4. Translation
+5. SRT/VTT generation
+6. TTS
+7. Audio duration/silence alignment
+8. Audio mixing
+9. Subtitle burn-in
+10. MP4 rendering
+
+هذه النسخة توفر Backend وواجهة ومراحل FFmpeg الأساسية. ربط مزود STT/Translation/TTS يحتاج مفاتيح API واختيار مزود مناسب.
+"""
+}
+
+for rel,c in data.items():
+    p=root/rel;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(c,encoding="utf-8")
+zip_path=Path("/mnt/data/AI-Video-Dubbing-Voice-Image-Replacement-Platform-PRO.zip")
+if zip_path.exists(): zip_path.unlink()
+with zipfile.ZipFile(zip_path,"w",zipfile.ZIP_DEFLATED) as z:
+    for p in root.rglob("*"):
+        if p.is_file(): z.write(p,p.relative_to(root))
+print(zip_path)
