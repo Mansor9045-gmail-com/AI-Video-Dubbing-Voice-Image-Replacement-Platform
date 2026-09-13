@@ -1,0 +1,155 @@
+from pathlib import Path
+import zipfile, json, textwrap
+
+zip_path = Path("/mnt/data/files/دبلجة الفيديوهات.zip")
+project_dir = Path("/mnt/data/ai_video_dubbing_mvp")
+project_dir.mkdir(parents=True, exist_ok=True)
+
+# Extract the supplied starter archive if it contains usable project material.
+with zipfile.ZipFile(zip_path, "r") as z:
+    z.extractall(project_dir / "starter")
+
+# Create an initial runnable architecture/documentation package.
+files = {
+    "README.md": """# AI Video Dubbing MVP
+
+نسخة أولية لمنصة دبلجة وترجمة الفيديو بالذكاء الاصطناعي.
+
+## سير العمل
+Upload → FFmpeg audio extraction → Whisper transcription → Translation → SRT → TTS → Audio mixing → FFmpeg MP4
+
+## البنية
+- `backend/`: API ومعالجة المشاريع
+- `frontend/`: واجهة المستخدم
+- `worker/`: مهام المعالجة الثقيلة
+- `storage/`: الملفات المؤقتة والنهائية
+- `docker-compose.yml`: تشغيل الخدمات محلياً
+
+## تشغيل مبدئي
+1. ثبّت Docker.
+2. أضف مفاتيح خدمات الذكاء الاصطناعي إلى `.env`.
+3. شغّل `docker compose up --build`.
+""",
+    ".env.example": """OPENAI_API_KEY=
+ELEVENLABS_API_KEY=
+DATABASE_URL=postgresql://dubbing:dubbing@db:5432/dubbing
+REDIS_URL=redis://redis:6379/0
+""",
+    "docker-compose.yml": """services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: dubbing
+      POSTGRES_PASSWORD: dubbing
+      POSTGRES_DB: dubbing
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: ./backend
+    env_file: .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+""",
+    "backend/Dockerfile": """FROM python:3.12-slim
+RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+""",
+    "backend/requirements.txt": """fastapi
+uvicorn[standard]
+python-multipart
+openai
+pydantic
+""",
+    "backend/app.py": """from pathlib import Path
+import uuid
+import shutil
+import subprocess
+
+from fastapi import FastAPI, UploadFile, File, HTTPException
+
+app = FastAPI(title="AI Video Dubbing API", version="0.1.0")
+BASE = Path("/tmp/dubbing")
+BASE.mkdir(parents=True, exist_ok=True)
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+@app.post("/projects")
+async def create_project(video: UploadFile = File(...)):
+    project_id = str(uuid.uuid4())
+    project = BASE / project_id
+    project.mkdir()
+    source = project / video.filename
+    with source.open("wb") as f:
+        shutil.copyfileobj(video.file, f)
+
+    audio = project / "audio.wav"
+    result = subprocess.run(
+        ["ffmpeg", "-y", "-i", str(source), "-vn", "-ac", "1", "-ar", "16000", str(audio)],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        raise HTTPException(400, "تعذر استخراج الصوت من الفيديو")
+
+    return {
+        "project_id": project_id,
+        "filename": video.filename,
+        "status": "uploaded",
+        "next_step": "transcription"
+    }
+""",
+    "frontend/README.md": """# Frontend
+
+واجهة MVP المقترحة:
+- صفحة تسجيل الدخول
+- لوحة المشاريع
+- إنشاء مشروع ورفع فيديو
+- اختيار اللغة
+- شاشة تقدم المعالجة
+- معاينة الفيديو
+- تحميل MP4 وSRT
+
+يمكن تنفيذها لاحقاً بـ Next.js + Tailwind CSS.
+""",
+    "worker/README.md": """# Worker Pipeline
+
+المراحل المخطط لها:
+1. استخراج الصوت بواسطة FFmpeg.
+2. Whisper للتفريغ مع التوقيت.
+3. ترجمة المقاطع.
+4. إنشاء SRT.
+5. TTS للصوت.
+6. مزامنة المقاطع.
+7. Mixing.
+8. FFmpeg لإخراج MP4.
+"""
+}
+
+for rel, content in files.items():
+    p = project_dir / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(content, encoding="utf-8")
+
+# Package the created MVP.
+out = Path("/mnt/data/ai_video_dubbing_mvp.zip")
+with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+    for p in project_dir.rglob("*"):
+        if p.is_file():
+            z.write(p, p.relative_to(project_dir))
+
+print(f"تم إنشاء المشروع الأولي: {out}")
+print("يحتوي على README وDocker Compose وBackend FastAPI وWorker/Frontend structure.")
