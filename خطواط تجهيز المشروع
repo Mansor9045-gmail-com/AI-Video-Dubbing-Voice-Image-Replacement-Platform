@@ -1,0 +1,17 @@
+dubbing-platform/
+├── docker-compose.yml
+├── .env.example
+├── backend/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── database.py
+│   │   ├── models/
+│   │   ├── api/
+│   │   ├── services/
+│   │   └── workers/
+│   ├── Dockerfile
+│   └── requirements.txt
+├── frontend/
+│   └── ...
+├── storage/
+└── README.md
