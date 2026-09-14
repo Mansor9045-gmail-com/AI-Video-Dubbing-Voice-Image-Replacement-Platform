@@ -1,0 +1,41 @@
+To link or integrate Typecast for dubbing videos from GitHub, you can follow the best practice described in the "create-typecast-shorts" skill. This approach allows you to create captioned vertical shorts or reels with Typecast narration from a local video or image file you own or have rights to use.
+
+Here is a summarized workflow to achieve dubbing for your videos (e.g., from GitHub repositories):
+
+1. **Prepare Your Environment and Media**  
+   - Download or clone the video files from GitHub to your local machine.  
+   - Confirm you have rights to use the video content.  
+   - Install required tools: `cast` CLI (Typecast CLI), `ffmpeg`, and `ffprobe`.  
+   - Authenticate with Typecast CLI using your API key (`cast login`).
+
+2. **Prepare the Script for Narration**  
+   - Write or generate the narration script for your video.  
+   - Adjust the script for TTS pronunciation if needed.
+
+3. **Select a Voice and Generate Audio with Captions**  
+   - Use the `cast` CLI to pick a voice or specify a voice ID.  
+   - Generate narration audio (`wav`) and timestamped subtitles (`srt`) with the `cast` command.
+
+4. **Process the Video with Audio and Subtitles**  
+   - Use `ffmpeg` to scale and crop the video to 1080×1920 vertical format.  
+   - Overlay subtitles and merge the generated narration audio.  
+   - Create a preview video for review.
+
+5. **Finalize the Video**  
+   - After approval, render the full-length dubbed video with subtitles.  
+   - Verify the output video meets the required specs.
+
+6. **Review and Publish**  
+   - Review the final dubbed video locally before publishing or sharing.
+
+This process can be scripted or automated in your development environment where you manage GitHub video assets. The key is to use the Typecast CLI (`cast`) for TTS narration and subtitle generation, combined with `ffmpeg` for video processing.
+
+For detailed commands, environment setup, and script examples, see the full "create-typecast-shorts" skill documentation here:  
+https://studio.typecast.ai/docs/bestpractice/create-typecast-shorts
+
+Also, install and authenticate the Typecast CLI as described here:  
+https://studio.typecast.ai/docs/cli-reference/installation
+
+If you want, I can help you generate a sample script or commands to start dubbing your GitHub videos using Typecast. Just provide the video file and narration text or topic.
+
+Let me know how you'd like to proceed!
