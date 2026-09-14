@@ -1,0 +1,15 @@
+You asked about "ابنه لي وكيل في الذكاء الاصطناعي" which means "Build me an AI agent."
+
+Typecast provides tools and APIs to integrate AI-powered text-to-speech capabilities into your applications. If you want to build an AI agent that uses Typecast, you can:
+
+- Use the AI agent implementation workflow, which lets agents like Claude, Cursor, or OpenClaw read Typecast docs and generate integration code for you. This is recommended for building AI agents with voice synthesis. (See: /integrations/claude-skills)
+
+- Use the official SDKs for your programming language to implement text-to-speech, streaming audio, subtitle timing, and custom voice creation. (See: /sdk/python and /quickstart)
+
+- Start with the Quickstart guide to create an API key and generate your first audio file. (See: /quickstart)
+
+- Use the API Reference for exact endpoints, request parameters, and examples to build your integration. (See: /api-reference)
+
+In summary, Typecast supports building AI agents by providing natural voice narration through text-to-speech APIs, SDKs, and integration workflows. You can start by reading the docs and using the official SDK or agent integration guides.
+
+If you want, I can help you open the API Reference with a prefilled request to synthesize speech or guide you through the first steps.
