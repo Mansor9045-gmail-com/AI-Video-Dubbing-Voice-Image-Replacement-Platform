@@ -1,0 +1,21 @@
+pip install pyttsx3
+import pyttsx3
+
+# تشغيل المحرك الصوتى
+engine = pyttsx3.init()
+
+# ضبط سرعة الكلام (اختياري)
+engine.setProperty('rate', 150) 
+
+# النص المراد نطقة
+text = "أهلاً بك، هذا تعليق صوتي يعمل بدون الحاجة للاتصال بالإنترنت."
+
+# أمر القراءة المباشرة
+engine.say(text)
+
+# تنفيذ الأمر وتشغيل الصوت
+engine.runAndWait()
+
+# إذا كنت تريد حفظ الصوت كملف بدلاً من تشغيله مباشرة:
+# engine.save_to_file(text, 'offline_voiceover.mp3')
+# engine.runAndWait()
