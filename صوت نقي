@@ -1,0 +1,16 @@
+pip install gTTS
+
+
+from gtts import gTTS
+import os
+
+# النص المراد تحويله إلى تعليق صوتي
+text_to_say = "مرحباً بك في برنامج التعليق الصوتي الخاص بي. هذا الصوت تم توليده برمجياً."
+
+# إعداد المكتبة للغة العربية
+tts = gTTS(text=text_to_say, lang='ar', slow=False)
+
+# حفظ التعليق الصوتي كملف MP3
+tts.save("arabic_voiceover.mp3")
+
+print("تم حفظ ملف التعليق الصوتي بنجاح باسم: arabic_voiceover.mp3")
